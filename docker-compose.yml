@@ -1,0 +1,133 @@
+services:
+  # --- CENTRAL LOG AGGREGATOR ---
+  log-aggregator:
+    build: ./log-aggregator
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:8080/logs', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- USER SERVICE & SIDECARS ---
+  user-service:
+    build: ./user-service
+    ports:
+      - "3000:3000"
+    environment:
+      - SERVICE_NAME=user-service
+    volumes:
+      - user_logs:/var/log/app
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  user-logging-sidecar:
+    build: ./logging-sidecar
+    environment:
+      - SERVICE_NAME=user-service
+      - LOG_AGGREGATOR_URL=http://log-aggregator:8080/logs
+      - ENVIRONMENT=development
+    volumes:
+      - user_logs:/var/log/app:ro
+    depends_on:
+      user-service:
+        condition: service_healthy
+
+  user-metrics-sidecar:
+    build: ./metrics-sidecar
+    ports:
+      - "9101:9100"
+    environment:
+      - SERVICE_NAME=user-service
+      - TARGET_METRICS_URL=http://user-service:3000/metrics
+      - ENVIRONMENT=development
+    depends_on:
+      user-service:
+        condition: service_healthy
+
+  # --- PRODUCT SERVICE & SIDECARS ---
+  product-service:
+    build: ./product-service
+    ports:
+      - "3001:3000"
+    environment:
+      - SERVICE_NAME=product-service
+    volumes:
+      - product_logs:/var/log/app
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  product-logging-sidecar:
+    build: ./logging-sidecar
+    environment:
+      - SERVICE_NAME=product-service
+      - LOG_AGGREGATOR_URL=http://log-aggregator:8080/logs
+      - ENVIRONMENT=development
+    volumes:
+      - product_logs:/var/log/app:ro
+    depends_on:
+      product-service:
+        condition: service_healthy
+
+  product-metrics-sidecar:
+    build: ./metrics-sidecar
+    ports:
+      - "9102:9100"
+    environment:
+      - SERVICE_NAME=product-service
+      - TARGET_METRICS_URL=http://product-service:3000/metrics
+      - ENVIRONMENT=development
+    depends_on:
+      product-service:
+        condition: service_healthy
+
+  # --- ORDER SERVICE & SIDECARS ---
+  order-service:
+    build: ./order-service
+    ports:
+      - "3002:3000"
+    environment:
+      - SERVICE_NAME=order-service
+    volumes:
+      - order_logs:/var/log/app
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  order-logging-sidecar:
+    build: ./logging-sidecar
+    environment:
+      - SERVICE_NAME=order-service
+      - LOG_AGGREGATOR_URL=http://log-aggregator:8080/logs
+      - ENVIRONMENT=development
+    volumes:
+      - order_logs:/var/log/app:ro
+    depends_on:
+      order-service:
+        condition: service_healthy
+
+  order-metrics-sidecar:
+    build: ./metrics-sidecar
+    ports:
+      - "9103:9100"
+    environment:
+      - SERVICE_NAME=order-service
+      - TARGET_METRICS_URL=http://order-service:3000/metrics
+      - ENVIRONMENT=development
+    depends_on:
+      order-service:
+        condition: service_healthy
+
+volumes:
+  user_logs:
+  product_logs:
+  order_logs:
